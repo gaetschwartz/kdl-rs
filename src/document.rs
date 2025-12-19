@@ -564,7 +564,11 @@ impl IntoIterator for KdlDocument {
 
 /// Formatting details for [`KdlDocument`]s.
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary),
+    arbitrary(default)
+)]
 pub struct KdlDocumentFormat {
     /// Whitespace and comments preceding the document's first node.
     pub leading: String,

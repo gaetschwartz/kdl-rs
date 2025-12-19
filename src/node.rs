@@ -882,7 +882,11 @@ impl KdlNode {
 
 /// Formatting details for [`KdlNode`].
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary),
+    arbitrary(default)
+)]
 pub struct KdlNodeFormat {
     /// Whitespace and comments preceding the node itself.
     pub leading: String,

@@ -478,7 +478,11 @@ impl FromStr for KdlEntry {
 
 /// Formatting details for [`KdlEntry`]s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary),
+    arbitrary(default)
+)]
 pub struct KdlEntryFormat {
     /// The actual text representation of the entry's value.
     pub value_repr: String,
