@@ -14,6 +14,7 @@ pub struct KdlEntry {
     pub(crate) ty: Option<KdlIdentifier>,
     pub(crate) value: KdlValue,
     pub(crate) name: Option<KdlIdentifier>,
+    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlEntryFormat>,
     #[cfg(feature = "span")]
     #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
@@ -478,11 +479,7 @@ impl FromStr for KdlEntry {
 
 /// Formatting details for [`KdlEntry`]s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(
-    feature = "arbitrary",
-    derive(arbitrary::Arbitrary),
-    arbitrary(default)
-)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlEntryFormat {
     /// The actual text representation of the entry's value.
     pub value_repr: String,

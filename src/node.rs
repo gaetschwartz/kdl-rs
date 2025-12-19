@@ -25,6 +25,7 @@ pub struct KdlNode {
     // TODO: consider using `hashlink` for this instead, later.
     pub(crate) entries: Vec<KdlEntry>,
     pub(crate) children: Option<KdlDocument>,
+    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlNodeFormat>,
     #[cfg(feature = "span")]
     #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
@@ -882,11 +883,7 @@ impl KdlNode {
 
 /// Formatting details for [`KdlNode`].
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "arbitrary",
-    derive(arbitrary::Arbitrary),
-    arbitrary(default)
-)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlNodeFormat {
     /// Whitespace and comments preceding the node itself.
     pub leading: String,

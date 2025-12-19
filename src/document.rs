@@ -24,6 +24,7 @@ use crate::{FormatConfig, KdlError, KdlNode, KdlValue};
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocument {
     pub(crate) nodes: Vec<KdlNode>,
+    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlDocumentFormat>,
     #[cfg(feature = "span")]
     #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
@@ -564,11 +565,7 @@ impl IntoIterator for KdlDocument {
 
 /// Formatting details for [`KdlDocument`]s.
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "arbitrary",
-    derive(arbitrary::Arbitrary),
-    arbitrary(default)
-)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocumentFormat {
     /// Whitespace and comments preceding the document's first node.
     pub leading: String,
