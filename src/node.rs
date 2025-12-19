@@ -18,6 +18,7 @@ use crate::{
 /// [`Node`](https://github.com/kdl-org/kdl/blob/main/SPEC.md#node) inside a
 /// KDL Document.
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlNode {
     pub(crate) ty: Option<KdlIdentifier>,
     pub(crate) name: KdlIdentifier,
@@ -26,6 +27,7 @@ pub struct KdlNode {
     pub(crate) children: Option<KdlDocument>,
     pub(crate) format: Option<KdlNodeFormat>,
     #[cfg(feature = "span")]
+    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
 }
 
@@ -880,6 +882,7 @@ impl KdlNode {
 
 /// Formatting details for [`KdlNode`].
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlNodeFormat {
     /// Whitespace and comments preceding the node itself.
     pub leading: String,

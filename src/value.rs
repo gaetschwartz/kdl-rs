@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 /// A specific [KDL Value](https://github.com/kdl-org/kdl/blob/main/SPEC.md#value).
 #[derive(Debug, Clone, PartialOrd)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum KdlValue {
     /// A [KDL String](https://github.com/kdl-org/kdl/blob/main/SPEC.md#string).
     String(String),

@@ -7,10 +7,12 @@ use crate::{v2_parser, KdlError, KdlValue};
 /// Represents a KDL
 /// [Identifier](https://github.com/kdl-org/kdl/blob/main/SPEC.md#identifier).
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlIdentifier {
     pub(crate) value: String,
     pub(crate) repr: Option<String>,
     #[cfg(feature = "span")]
+    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
 }
 

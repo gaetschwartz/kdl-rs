@@ -9,12 +9,14 @@ use crate::{v2_parser, KdlError, KdlIdentifier, KdlValue};
 /// a (key/value)
 /// [`Property`](https://github.com/kdl-org/kdl/blob/main/SPEC.md#property)
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlEntry {
     pub(crate) ty: Option<KdlIdentifier>,
     pub(crate) value: KdlValue,
     pub(crate) name: Option<KdlIdentifier>,
     pub(crate) format: Option<KdlEntryFormat>,
     #[cfg(feature = "span")]
+    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
 }
 
@@ -476,6 +478,7 @@ impl FromStr for KdlEntry {
 
 /// Formatting details for [`KdlEntry`]s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlEntryFormat {
     /// The actual text representation of the entry's value.
     pub value_repr: String,

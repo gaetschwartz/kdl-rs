@@ -21,10 +21,12 @@ use crate::{FormatConfig, KdlError, KdlNode, KdlValue};
 /// let kdl: KdlDocument = "foo 1 2 3\nbar 4 5 6".parse().expect("parse failed");
 /// ```
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocument {
     pub(crate) nodes: Vec<KdlNode>,
     pub(crate) format: Option<KdlDocumentFormat>,
     #[cfg(feature = "span")]
+    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
 }
 
@@ -562,6 +564,7 @@ impl IntoIterator for KdlDocument {
 
 /// Formatting details for [`KdlDocument`]s.
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocumentFormat {
     /// Whitespace and comments preceding the document's first node.
     pub leading: String,
