@@ -21,14 +21,38 @@ use crate::{FormatConfig, KdlError, KdlNode, KdlValue};
 /// let kdl: KdlDocument = "foo 1 2 3\nbar 4 5 6".parse().expect("parse failed");
 /// ```
 #[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocument {
     pub(crate) nodes: Vec<KdlNode>,
-    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlDocumentFormat>,
     #[cfg(feature = "span")]
-    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl {
+    use super::*;
+    use arbitrary::{Arbitrary, Unstructured};
+
+    impl<'a> Arbitrary<'a> for KdlDocument {
+        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+            // Generate nodes (0-3 for reasonable sizes to avoid deep recursion)
+            let num_nodes: usize = u.int_in_range(0..=3)?;
+            let mut nodes = Vec::with_capacity(num_nodes);
+            for _ in 0..num_nodes {
+                if u.len() > 5 {
+                    // Only add nodes if we have enough data
+                    nodes.push(KdlNode::arbitrary(u)?);
+                }
+            }
+
+            Ok(KdlDocument {
+                nodes,
+                format: None, // Use default formatting
+                #[cfg(feature = "span")]
+                span: SourceSpan::from(0..0),
+            })
+        }
+    }
 }
 
 impl PartialEq for KdlDocument {
@@ -565,12 +589,18 @@ impl IntoIterator for KdlDocument {
 
 /// Formatting details for [`KdlDocument`]s.
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlDocumentFormat {
     /// Whitespace and comments preceding the document's first node.
     pub leading: String,
     /// Whitespace and comments following the document's last node.
     pub trailing: String,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for KdlDocumentFormat {
+    fn arbitrary(_u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(KdlDocumentFormat::default())
+    }
 }
 
 #[cfg(test)]

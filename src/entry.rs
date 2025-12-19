@@ -9,16 +9,51 @@ use crate::{v2_parser, KdlError, KdlIdentifier, KdlValue};
 /// a (key/value)
 /// [`Property`](https://github.com/kdl-org/kdl/blob/main/SPEC.md#property)
 #[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlEntry {
     pub(crate) ty: Option<KdlIdentifier>,
     pub(crate) value: KdlValue,
     pub(crate) name: Option<KdlIdentifier>,
-    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlEntryFormat>,
     #[cfg(feature = "span")]
-    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl {
+    use super::*;
+    use arbitrary::{Arbitrary, Unstructured};
+
+    impl<'a> Arbitrary<'a> for KdlEntry {
+        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+            // Decide whether this is a property (has name) or argument (no name)
+            let has_name: bool = u.arbitrary()?;
+            // Decide whether to include a type annotation
+            let has_type: bool = u.arbitrary()?;
+
+            let name = if has_name {
+                Some(KdlIdentifier::arbitrary(u)?)
+            } else {
+                None
+            };
+
+            let ty = if has_type {
+                Some(KdlIdentifier::arbitrary(u)?)
+            } else {
+                None
+            };
+
+            let value = KdlValue::arbitrary(u)?;
+
+            Ok(KdlEntry {
+                ty,
+                value,
+                name,
+                format: None, // Use default formatting
+                #[cfg(feature = "span")]
+                span: SourceSpan::from(0..0),
+            })
+        }
+    }
 }
 
 impl PartialEq for KdlEntry {
@@ -479,7 +514,6 @@ impl FromStr for KdlEntry {
 
 /// Formatting details for [`KdlEntry`]s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlEntryFormat {
     /// The actual text representation of the entry's value.
     pub value_repr: String,
@@ -502,6 +536,13 @@ pub struct KdlEntryFormat {
     pub after_eq: String,
     /// Do not clobber this format during autoformat
     pub autoformat_keep: bool,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for KdlEntryFormat {
+    fn arbitrary(_u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(KdlEntryFormat::default())
+    }
 }
 
 #[cfg(test)]

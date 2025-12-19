@@ -18,18 +18,65 @@ use crate::{
 /// [`Node`](https://github.com/kdl-org/kdl/blob/main/SPEC.md#node) inside a
 /// KDL Document.
 #[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlNode {
     pub(crate) ty: Option<KdlIdentifier>,
     pub(crate) name: KdlIdentifier,
     // TODO: consider using `hashlink` for this instead, later.
     pub(crate) entries: Vec<KdlEntry>,
     pub(crate) children: Option<KdlDocument>,
-    #[cfg_attr(feature = "arbitrary", arbitrary(default))]
     pub(crate) format: Option<KdlNodeFormat>,
     #[cfg(feature = "span")]
-    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl {
+    use super::*;
+    use arbitrary::{Arbitrary, Unstructured};
+
+    impl<'a> Arbitrary<'a> for KdlNode {
+        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+            // Generate a valid node name
+            let name = KdlIdentifier::arbitrary(u)?;
+
+            // Optionally generate a type annotation
+            let has_type: bool = u.arbitrary()?;
+            let ty = if has_type {
+                Some(KdlIdentifier::arbitrary(u)?)
+            } else {
+                None
+            };
+
+            // Generate entries (0-5 for reasonable sizes)
+            let num_entries: usize = u.int_in_range(0..=5)?;
+            let mut entries = Vec::with_capacity(num_entries);
+            for _ in 0..num_entries {
+                entries.push(KdlEntry::arbitrary(u)?);
+            }
+
+            // Optionally generate children (with limited depth to avoid deep recursion)
+            let has_children: bool = u.arbitrary()?;
+            let children = if has_children && u.len() > 10 {
+                // Only generate children if we have enough data
+                Some(KdlDocument::arbitrary(u)?)
+            } else {
+                None
+            };
+
+            Ok(KdlNode {
+                ty,
+                name,
+                entries,
+                children,
+                format: Some(KdlNodeFormat {
+                    trailing: "\n".into(),
+                    ..Default::default()
+                }),
+                #[cfg(feature = "span")]
+                span: SourceSpan::from(0..0),
+            })
+        }
+    }
 }
 
 impl PartialEq for KdlNode {
@@ -883,7 +930,6 @@ impl KdlNode {
 
 /// Formatting details for [`KdlNode`].
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlNodeFormat {
     /// Whitespace and comments preceding the node itself.
     pub leading: String,
@@ -901,6 +947,17 @@ pub struct KdlNodeFormat {
     pub terminator: String,
     /// Whitespace and comments following the node itself, after the terminator.
     pub trailing: String,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for KdlNodeFormat {
+    fn arbitrary(_u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        // Use sensible defaults for node formatting
+        Ok(KdlNodeFormat {
+            trailing: "\n".into(),
+            ..Default::default()
+        })
+    }
 }
 
 #[cfg(test)]

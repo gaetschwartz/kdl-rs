@@ -7,13 +7,188 @@ use crate::{v2_parser, KdlError, KdlValue};
 /// Represents a KDL
 /// [Identifier](https://github.com/kdl-org/kdl/blob/main/SPEC.md#identifier).
 #[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KdlIdentifier {
     pub(crate) value: String,
     pub(crate) repr: Option<String>,
     #[cfg(feature = "span")]
-    #[cfg_attr(feature = "arbitrary", arbitrary(value = SourceSpan::from(0..0)))]
     pub(crate) span: SourceSpan,
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl {
+    use super::*;
+    use arbitrary::{Arbitrary, Unstructured};
+
+    /// Characters that are disallowed in KDL identifiers (unquoted form)
+    const DISALLOWED_IDENT_CHARS: &[char] =
+        &['\\', '/', '(', ')', '{', '}', '[', ']', ';', '"', '#', '='];
+
+    /// Unicode whitespace characters that cannot appear in identifiers
+    const UNICODE_SPACES: &[char] = &[
+        '\u{0009}', '\u{0020}', '\u{00A0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}',
+        '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}',
+        '\u{200A}', '\u{202F}', '\u{205F}', '\u{3000}',
+    ];
+
+    /// Newline characters
+    const NEWLINE_CHARS: &[char] = &[
+        '\u{000D}', // CR
+        '\u{000A}', // LF
+        '\u{0085}', // NEL
+        '\u{000B}', // VT
+        '\u{000C}', // FF
+        '\u{2028}', // LS
+        '\u{2029}', // PS
+    ];
+
+    /// Keywords that cannot be used as bare identifiers
+    const KEYWORDS: &[&str] = &["true", "false", "null", "inf", "-inf", "nan"];
+
+    /// Check if a character is disallowed in identifier strings
+    fn is_disallowed_ident_char(c: char) -> bool {
+        DISALLOWED_IDENT_CHARS.contains(&c)
+            || UNICODE_SPACES.contains(&c)
+            || NEWLINE_CHARS.contains(&c)
+            || is_disallowed_unicode(c)
+    }
+
+    /// Check if a character is a disallowed unicode codepoint per spec section 3.19
+    fn is_disallowed_unicode(c: char) -> bool {
+        matches!(c,
+            '\u{0000}'..='\u{0008}'
+            | '\u{000E}'..='\u{001F}'
+            | '\u{007F}'
+            | '\u{200E}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+        )
+    }
+
+    /// Characters that are valid for identifier strings (excluding initial position restrictions)
+    const VALID_IDENT_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-+.!@$%^&*:?<>,~`|'0123456789";
+
+    /// Characters that are valid for the first position in an identifier
+    /// (excluding digits and sign/dot with special rules)
+    const VALID_INITIAL_CHARS: &[u8] =
+        b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_!@$%^&*:?<>,~`|'";
+
+    impl<'a> Arbitrary<'a> for KdlIdentifier {
+        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+            // Decide whether to generate a plain identifier or a quoted string
+            let use_quoted: bool = u.arbitrary()?;
+
+            let value = if use_quoted {
+                // Generate a valid string value (can be anything except disallowed unicode)
+                generate_valid_string_value(u)?
+            } else {
+                // Generate a valid plain identifier
+                generate_valid_plain_ident(u)?
+            };
+
+            Ok(KdlIdentifier {
+                value,
+                repr: None, // Let Display compute the appropriate representation
+                #[cfg(feature = "span")]
+                span: SourceSpan::from(0..0),
+            })
+        }
+    }
+
+    /// Generate a valid plain (unquoted) identifier
+    fn generate_valid_plain_ident(u: &mut Unstructured<'_>) -> arbitrary::Result<String> {
+        loop {
+            let len = u.int_in_range(1..=20)?;
+            let mut result = String::with_capacity(len);
+
+            // Choose the type of identifier:
+            // 0 = unambiguous (starts with letter/underscore/etc)
+            // 1 = signed (starts with + or -)
+            // 2 = dotted (starts with optional sign then .)
+            let ident_type: u8 = u.int_in_range(0..=2)?;
+
+            match ident_type {
+                0 => {
+                    // Unambiguous identifier: starts with non-digit, non-sign, non-dot
+                    let idx = u.choose_index(VALID_INITIAL_CHARS.len())?;
+                    result.push(VALID_INITIAL_CHARS[idx] as char);
+
+                    // Add remaining characters
+                    for _ in 1..len {
+                        let idx = u.choose_index(VALID_IDENT_CHARS.len())?;
+                        result.push(VALID_IDENT_CHARS[idx] as char);
+                    }
+                }
+                1 => {
+                    // Signed identifier: starts with + or -
+                    let sign = if u.arbitrary()? { '+' } else { '-' };
+                    result.push(sign);
+
+                    if len > 1 {
+                        // Second char must NOT be a digit or .
+                        let idx = u.choose_index(VALID_INITIAL_CHARS.len())?;
+                        result.push(VALID_INITIAL_CHARS[idx] as char);
+
+                        // Rest can be any valid identifier char
+                        for _ in 2..len {
+                            let idx = u.choose_index(VALID_IDENT_CHARS.len())?;
+                            result.push(VALID_IDENT_CHARS[idx] as char);
+                        }
+                    }
+                }
+                2 => {
+                    // Dotted identifier: optional sign then .
+                    if u.arbitrary()? {
+                        let sign = if u.arbitrary()? { '+' } else { '-' };
+                        result.push(sign);
+                    }
+                    result.push('.');
+
+                    if result.len() < len {
+                        // Next char must NOT be a digit
+                        let idx = u.choose_index(VALID_INITIAL_CHARS.len())?;
+                        result.push(VALID_INITIAL_CHARS[idx] as char);
+
+                        // Rest can be any valid identifier char
+                        for _ in (result.len())..len {
+                            let idx = u.choose_index(VALID_IDENT_CHARS.len())?;
+                            result.push(VALID_IDENT_CHARS[idx] as char);
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+
+            // Verify the result is not a keyword
+            if !KEYWORDS.contains(&result.as_str()) {
+                // Verify all characters are valid
+                if !result.chars().any(is_disallowed_ident_char) {
+                    return Ok(result);
+                }
+            }
+            // If we generated a keyword or invalid identifier, try again
+        }
+    }
+
+    /// Generate a valid string value (for quoted identifiers)
+    fn generate_valid_string_value(u: &mut Unstructured<'_>) -> arbitrary::Result<String> {
+        let len = u.int_in_range(0..=30)?;
+        let mut result = String::with_capacity(len);
+
+        // Use a mix of safe ASCII and some extended characters
+        const SAFE_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-+.!@#$%^&*(){}[]\\/<>?,;:'\" \t";
+
+        for _ in 0..len {
+            let idx = u.choose_index(SAFE_CHARS.len())?;
+            let c = SAFE_CHARS[idx] as char;
+            // Filter out disallowed unicode (though ASCII is generally fine)
+            if !is_disallowed_unicode(c) {
+                result.push(c);
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 impl PartialEq for KdlIdentifier {

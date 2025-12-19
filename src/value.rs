@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 /// A specific [KDL Value](https://github.com/kdl-org/kdl/blob/main/SPEC.md#value).
 #[derive(Debug, Clone, PartialOrd)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum KdlValue {
     /// A [KDL String](https://github.com/kdl-org/kdl/blob/main/SPEC.md#string).
     String(String),
@@ -20,6 +19,86 @@ pub enum KdlValue {
 
     /// The [KDL Null Value](https://github.com/kdl-org/kdl/blob/main/SPEC.md#null).
     Null,
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl {
+    use super::*;
+    use arbitrary::{Arbitrary, Unstructured};
+
+    /// Check if a character is a disallowed unicode codepoint per spec section 3.19
+    fn is_disallowed_unicode(c: char) -> bool {
+        matches!(c,
+            '\u{0000}'..='\u{0008}'
+            | '\u{000E}'..='\u{001F}'
+            | '\u{007F}'
+            | '\u{200E}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+        )
+    }
+
+    impl<'a> Arbitrary<'a> for KdlValue {
+        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+            // Choose which variant to generate (0-4)
+            let variant: u8 = u.int_in_range(0..=4)?;
+
+            match variant {
+                0 => {
+                    // Generate a valid string
+                    let len = u.int_in_range(0..=50)?;
+                    let mut result = String::with_capacity(len);
+
+                    // Use safe ASCII characters
+                    const SAFE_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-+.!@#$%^&*(){}[]\\/<>?,;:'\" \t\n\r";
+
+                    for _ in 0..len {
+                        let idx = u.choose_index(SAFE_CHARS.len())?;
+                        let c = SAFE_CHARS[idx] as char;
+                        // Filter out disallowed unicode (though ASCII is generally fine except some control chars)
+                        if !is_disallowed_unicode(c) {
+                            result.push(c);
+                        }
+                    }
+
+                    Ok(KdlValue::String(result))
+                }
+                1 => {
+                    // Generate an integer - use smaller range for more reasonable values
+                    let val: i128 = u.int_in_range(-1_000_000_000_000i128..=1_000_000_000_000i128)?;
+                    Ok(KdlValue::Integer(val))
+                }
+                2 => {
+                    // Generate a float - avoid NaN/Inf for simpler cases, but allow them sometimes
+                    let special: u8 = u.int_in_range(0..=10)?;
+                    let val = match special {
+                        0 => f64::INFINITY,
+                        1 => f64::NEG_INFINITY,
+                        2 => f64::NAN,
+                        _ => {
+                            // Generate a normal float
+                            let int_part: i64 = u.int_in_range(-1_000_000i64..=1_000_000i64)?;
+                            let frac_part: u32 = u.int_in_range(0..=999_999u32)?;
+                            let val = int_part as f64 + (frac_part as f64 / 1_000_000.0);
+                            val
+                        }
+                    };
+                    Ok(KdlValue::Float(val))
+                }
+                3 => {
+                    // Generate a boolean
+                    let val: bool = u.arbitrary()?;
+                    Ok(KdlValue::Bool(val))
+                }
+                4 => {
+                    // Generate null
+                    Ok(KdlValue::Null)
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
 }
 
 impl Eq for KdlValue {}
